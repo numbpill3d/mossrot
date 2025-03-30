@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ethereal Moss Reclamation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "MS Gothic", "Courier New", monospace;
+            color: #9EB897;
+        }
+
+        body {
+            background-color: #0A0A0A;
+            overflow-x: hidden;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect fill="%23050505" width="100" height="100"/><path fill="%23070707" d="M0 10h100v10H0zM0 30h100v10H0zM0 50h100v10H0zM0 70h100v10H0zM0 90h100v10H0z"/></svg>');
+        }
+
+        #header {
+            width: 100%;
+            height: 80px;
+            background-color: #050505;
+            border-bottom: 1px solid #112211;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #header::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="80" viewBox="0 0 300 80"><rect fill="%23060606" width="300" height="80"/><path d="M0,40 C60,10 120,60 180,30 C240,0 300,40 360,20" stroke="%23112211" fill="none" stroke-width="0.5"/></svg>');
+            animation: headerFlow 20s linear infinite;
+            opacity: 0.5;
+        }
+
+        @keyframes headerFlow {
+            0% { background-position: 0 0; }
+            100% { background-position: -300px 0; }
+        }
+
+        #header h1 {
+            font-size: 24px;
+            letter-spacing: 3px;
+            text-transform: lowercase;
+            color: #698969;
+            text-shadow: 1px 1px 3px #000;
+            z-index: 1;
+        }
+
+        #container {
+            max-width: 900px;
+            min-height: calc(100vh - 80px);
+            margin: 20px auto;
+            padding: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            position: relative;
+            border: 1px solid #112211;
+            border-radius: 3px;
+            background-color: rgba(5, 5, 5, 0.7);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+        }
+
+        #sidebar {
+            width: 200px;
+            padding: 10px;
+            border-right: 1px solid #112211;
+        }
+
+        .sidebar-section {
+            margin-bottom: 15px;
+            padding: 7px;
+            border: 1px solid #112211;
+            border-radius: 2px;
+            background-color: #070707;
+        }
+
+        .sidebar-section h3 {
+            font-size: 14px;
+            margin-bottom: 5px;
+            padding-bottom: 3px;
+            border-bottom: 1px dashed #112211;
+        }
+
+        .nav-item {
+            display: block;
+            padding: 3px 0;
+            font-size: 12px;
+            text-decoration: none;
+        }
+
+        .nav-item:hover {
+            color: #AECAAE;
+            text-decoration: underline;
+        }
+
+        .marquee {
+            height: 40px;
+            overflow: hidden;
+            position: relative;
+            background-color: #060606;
+            border: 1px solid #112211;
+            margin: 10px 0;
+        }
+
+        .marquee-content {
+            display: flex;
+            position: absolute;
+            white-space: nowrap;
+            animation: marquee 20s linear infinite;
+        }
+
+        .marquee-item {
+            width: 88px;
+            height: 32px;
+            margin: 4px;
+            background-color: #080808;
+            border: 1px solid #112211;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+        #content {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .column {
+            flex: 1;
+            min-width: 300px;
+            padding: 10px;
+        }
+
+        .widget {
+            margin-bottom: 20px;
+            border: 1px solid #112211;
+            border-radius: 3px;
+            overflow: hidden;
+            background-color: #070707;
+        }
+
+        .widget-header {
+            padding: 5px 10px;
+            background-color: #0A100A;
+            border-bottom: 1px solid #112211;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .widget-title {
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+
+        .widget-controls {
+            display: flex;
+            gap: 5px;
+        }
+
+        .widget-control {
+            cursor: pointer;
+            width: 15px;
+            height: 15px;
+            text-align: center;
+            line-height: 15px;
+            border: 1px solid #112211;
+            font-size: 10px;
+        }
+
+        .widget-content {
+            padding: 10px;
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .moss-stats {
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .progress-bar {
+            height: 5px;
+            width: 100%;
+            background-color: #0A0A0A;
+            margin: 5px 0 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #225022;
+            width: 0;
+            transition: width 1s ease;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #112211;
+        }
+
+        .tab {
+            padding: 5px 10px;
+            cursor: pointer;
+            border-right: 1px solid #112211;
+            font-size: 12px;
+        }
+
+        .tab.active {
+            background-color: #0A100A;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 10px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .moss-log {
+            height: 100px;
+            overflow-y: auto;
+            font-size: 10px;
+            line-height: 1.3;
+            padding: 5px;
+            background-color: #050505;
+            border: 1px solid #112211;
+        }
+
+        .log-entry {
+            margin-bottom: 3px;
+            opacity: 0.8;
+        }
+
+        .floating-image {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            pointer-events: none;
+            background-color: rgba(16, 40, 16, 0.2);
+            border: 1px dashed #112211;
+            animation: float 20s infinite ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            text-shadow: 0 0 2px #000;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(15px, 15px) rotate(5deg); }
+            50% { transform: translate(0, 30px) rotate(0deg); }
+            75% { transform: translate(-15px, 15px) rotate(-5deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th, td {
+            padding: 4px;
+            text-align: left;
+            border: 1px solid #112211;
+        }
+
+        th {
+            background-color: #0A100A;
+        }
+
+        .chatbox {
+            height: 180px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 5px;
+            background-color: #050505;
+            border: 1px solid #112211;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .chat-form {
+            display: flex;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 5px;
+            background-color: #070707;
+            border: 1px solid #112211;
+            color: #9EB897;
+            font-size: 12px;
+        }
+
+        .chat-button {
+            padding: 5px 10px;
+            background-color: #0A100A;
+            border: 1px solid #112211;
+            border-left: none;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .moss-message {
+            color: #698969;
+        }
+
+        .user-message {
+            color: #9EB897;
+        }
+
+        .message-time {
+            font-size: 9px;
+            color: #556655;
+            margin-right: 5px;
+        }
+
+        .collapse-button {
+            cursor: pointer;
+            padding: 3px;
+            border: 1px solid #112211;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            margin-bottom: 5px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #050505;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #112211;
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            #sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #112211;
+                margin-bottom: 10px;
+            }
+            
+            .column {
+                width: 100%;
+                min-width: 100%;
+            }
+            
+            #content {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>e t h e r e a l · m o s s r o t</h1>
+    </div>
+    
+    <div id="container">
+        <!-- Floating decorative elements -->
+        <div class="floating-image" style="top: 50px; left: 40px;">*</div>
+        <div class="floating-image" style="top: 150px; right: 60px;">~</div>
+        <div class="floating-image" style="bottom: 120px; left: 80px;">.</div>
+        <div class="floating-image" style="bottom: 70px; right: 50px;">+</div>
+        
+        <div id="sidebar">
+            <div class="collapse-button" title="Toggle Sidebar">&lt;&gt;</div>
+            
+            <div class="sidebar-section">
+                <h3>n a v i g a t i o n</h3>
+                <a href="#" class="nav-item">. . propagation</a>
+                <a href="#" class="nav-item">. . spore collection</a>
+                <a href="#" class="nav-item">. . decay archives</a>
+                <a href="#" class="nav-item">. . entropy measures</a>
+            </div>
+            
+            <div class="marquee">
+                <div class="marquee-content">
+                    <div class="marquee-item">[ moss:01 ]</div>
+                    <div class="marquee-item">[ fungi:02 ]</div>
+                    <div class="marquee-item">[ lichen:03 ]</div>
+                    <div class="marquee-item">[ decay:04 ]</div>
+                    <div class="marquee-item">[ spore:05 ]</div>
+                    <div class="marquee-item">[ growth:06 ]</div>
+                    <div class="marquee-item">[ cycle:07 ]</div>
+                    <div class="marquee-item">[ renew:08 ]</div>
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3>r e c l a m a t i o n</h3>
+                <div class="moss-stats">
+                    <div>entropy level: 36%</div>
+                    <div class="progress-bar"><div class="progress-fill" style="width: 36%"></div></div>
+                    
+                    <div>organic spread: 42%</div>
+                    <div class="progress-bar"><div class="progress-fill" style="width: 42%"></div></div>
+                    
+                    <div>moisture: 68%</div>
+                    <div class="progress-bar"><div class="progress-fill" style="width: 68%"></div></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="content">
+            <div class="column">
+                <div class="widget">
+                    <div class="widget-header">
+                        <div class="widget-title">e t h e r e a l · s i m u l a t i o n</div>
+                        <div class="widget-controls">
+                            <div class="widget-control">_</div>
+                            <div class="widget-control">□</div>
+                            <div class="widget-control">×</div>
+                        </div>
+                    </div>
+                    <div class="widget-content">
+                        <div id="canvas-container">
+                            <canvas id="moss-canvas"></canvas>
+                        </div>
+                        <div class="moss-stats">
+                            <div>growth cycles: <span id="cycles">0</span></div>
+                            <div>cellular density: <span id="density">0.00</span></div>
+                            <div>decay factor: <span id="decay">0.00</span></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="widget">
+                    <div class="widget-header">
+                        <div class="widget-title">g r o w t h · p a t t e r n s</div>
+                        <div class="widget-controls">
+                            <div class="widget-control">_</div>
+                            <div class="widget-control">□</div>
+                            <div class="widget-control">×</div>
+                        </div>
+                    </div>
+                    <div class="widget-content">
+                        <div class="tabs">
+                            <div class="tab active" data-tab="patterns">patterns</div>
+                            <div class="tab" data-tab="species">species</div>
+                            <div class="tab" data-tab="environment">environment</div>
+                        </div>
+                        <div class="tab-content active" data-tab="patterns">
+                            The slow creep of verdant life across forgotten surfaces follows fractal patterns, each new tendril reaching toward moisture and shadow. Hyphal networks spread beneath visible growth, communicating in chemical whispers.
+                        </div>
+                        <div class="tab-content" data-tab="species">
+                            Bryophyta variants thrive in this simulation, particularly the resilient _polytrichum commune_ and delicate _leucobryum glaucum_. Their interplay creates the layered textures visible in the three-dimensional rendering.
+                        </div>
+                        <div class="tab-content" data-tab="environment">
+                            Temperature range: 10-18°C
+                            Humidity: 65-80%
+                            Light: Diffused, 4-6 hours
+                            Substrate: Silicon-organic composite
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="widget">
+                    <div class="widget-header">
+                        <div class="widget-title">c y c l e · l o g</div>
+                        <div class="widget-controls">
+                            <div class="widget-control">_</div>
+                            <div class="widget-control">□</div>
+                            <div class="widget-control">×</div>
+                        </div>
+                    </div>
+                    <div class="widget-content">
+                        <div class="moss-log" id="moss-log">
+                            <div class="log-entry">// cycle:9032 | entropy increase: +0.02 | new growth nodes: 8</div>
+                            <div class="log-entry">// cycle:9031 | moisture absorption: 12mL | density: 0.42</div>
+                            <div class="log-entry">// cycle:9030 | spore release event | propagation: 37%</div>
+                            <div class="log-entry">// cycle:9029 | dormancy phase initiated | energy conservation</div>
+                            <div class="log-entry">// cycle:9028 | substrate decomposition: +0.5mm | nutrient extraction</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="column">
+                <div class="widget">
+                    <div class="widget-header">
+                        <div class="widget-title">d e c a y · m e t r i c s</div>
+                        <div class="widget-controls">
+                            <div class="widget-control">_</div>
+                            <div class="widget-control">□</div>
+                            <div class="widget-control">×</div>
+                        </div>
+                    </div>
+                    <div class="widget-content">
+                        <table>
+                            <tr>
+                                <th>substrate</th>
+                                <th>decay rate</th>
+                                <th>absorption</th>
+                                <th>yield</th>
+                            </tr>
+                            <tr>
+                                <td>silicon</td>
+                                <td>0.003/cycle</td>
+                                <td>low</td>
+                                <td>23%</td>
+                            </tr>
+                            <tr>
+                                <td>carbon</td>
+                                <td>0.012/cycle</td>
+                                <td>high</td>
+                                <td>78%</td>
+                            </tr>
+                            <tr>
+                                <td>polymer</td>
+                                <td>0.008/cycle</td>
+                                <td>medium</td>
+                                <td>45%</td>
+                            </tr>
+                            <tr>
+                                <td>ceramic</td>
+                                <td>0.001/cycle</td>
+                                <td>very low</td>
+                                <td>12%</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="widget">
+                    <div class="widget-header">
+                        <div class="widget-title">c o m m u n i o n</div>
+                        <div class="widget-controls">
+                            <div class="widget-control">_</div>
+                            <div class="widget-control">□</div>
+                            <div class="widget-control">×</div>
+                        </div>
+                    </div>
+                    <div class="widget-content">
+                        <div class="chatbox">
+                            <div class="chat-messages" id="chat-messages">
+                                <div><span class="message-time">09:23:45</span> <span class="moss-message">// welcome to the quiet conversation of decay</span></div>
+                                <div><span class="message-time">09:24:12</span> <span class="user-message">how does the moss communicate?</span></div>
+                                <div><span class="message-time">09:24:18</span> <span class="moss-message">// through chemical gradients and hyphal networks, a language of molecules and moisture</span></div>
+                                <div><span class="message-time">09:25:01</span> <span class="user-message">what happens when the substrate is fully consumed?</span></div>
+                                <div><span class="message-time">09:25:10</span> <span class="moss-message">// we become dormant, our spores carried elsewhere on digital winds, waiting</span></div>
+                            </div>
+                            <form class="chat-form" id="chat-form">
+                                <input type="text" class="chat-input" placeholder="whisper to the moss...">
+                                <button type="submit" class="chat-button">send</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="widget">
+                    <div class="widget-header">
+                        <div class="widget-title">r e c l a m a t i o n · i n d e x</div>
+                        <div class="widget-controls">
+                            <div class="widget-control">_</div>
+                            <div class="widget-control">□</div>
+                            <div class="widget-control">×</div>
+                        </div>
+                    </div>
+                    <div class="widget-content">
+                        <ul style="list-style-type: none; font-size: 12px;">
+                            <li>. . . forgotten terminals [ decay: 78% ]</li>
+                            <li>. . . memory banks [ decay: 45% ]</li>
+                            <li>. . . abandoned networks [ decay: 63% ]</li>
+                            <li>. . . silent servers [ decay: 91% ]</li>
+                            <li>. . . lost protocols [ decay: 24% ]</li>
+                            <li>. . . dormant systems [ decay: 52% ]</li>
+                            <li>. . . scattered data [ decay: 37% ]</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Three.js Moss Growth Simulation
+        (() => {
+            const canvas = document.getElementById('moss-canvas');
+            const renderer = new THREE.WebGLRenderer({
+                canvas,
+                alpha: true,
+                antialias: true
+            });
+            
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+            camera.position.set(0, 0, 5);
+            
+            // Responsive resize
+            function resizeCanvas() {
+                const container = document.getElementById('canvas-container');
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                
+                renderer.setSize(width, height);
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+            }
+            
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x112211, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0x225522, 0.8);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            // Base geometry (substrate)
+            const baseGeometry = new THREE.PlaneGeometry(4, 4, 40, 40);
+            const baseMaterial = new THREE.MeshStandardMaterial({
+                color: 0x111111,
+                roughness: 0.8,
+                metalness: 0.2,
+                wireframe: false
+            });
+            
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            scene.add(base);
+            
+            // Moss particles
+            const particleCount = 5000;
+            const particleGeometry = new THREE.BufferGeometry();
+            const particlePositions = new Float32Array(particleCount * 3);
+            const particleSizes = new Float32Array(particleCount);
+            const particleColors = new Float32Array(particleCount * 3);
+            
+            const simplex = new SimplexNoise();
+            let growthCycles = 0;
+            let densityValue = 0;
+            let decayValue = 0;
+            
+            function initParticles() {
+                for (let i = 0; i < particleCount; i++) {
+                    const x = (Math.random() - 0.5) * 4;
+                    const y = (Math.random() - 0.5) * 4;
+                    
+                    const noise = (simplex.noise2D(x * 0.5, y * 0.5) + 1) * 0.5;
+                    const z = noise * 0.1;
+                    
+                    particlePositions[i * 3] = x;
+                    particlePositions[i * 3 + 1] = y;
+                    particlePositions[i * 3 + 2] = z;
+                    
+                    particleSizes[i] = noise * 0.1;
+                    
+                    // Moss green with variations
+                    particleColors[i * 3] = 0.1 + noise * 0.2;      // R
+                    particleColors[i * 3 + 1] = 0.3 + noise * 0.3;  // G
+                    particleColors[i * 3 + 2] = 0.1 + noise * 0.1;  // B
+                }
+                
+                particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+                particleGeometry.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+                particleGeometry.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+            }
+            
+            initParticles();
+            
+            const particleMaterial = new THREE.PointsMaterial({
+                size: 0.05,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+            
+            const particles = new THREE.Points(particleGeometry, particleMaterial);
+            scene.add(particles);
+            
+            // Growth and decay animation
+            function updateGrowth() {
+                growthCycles++;
+                document.getElementById('cycles').textContent = growthCycles;
+                
+                const positions = particleGeometry.attributes.position.array;
+                const sizes = particleGeometry.attributes.size.array;
+                const colors = particleGeometry.attributes.color.array;
+                
+                let totalSize = 0;
+                let decayFactor = 0;
+                
+                for (let i = 0; i < particleCount; i++) {
+                    const x = positions[i * 3];
+                    const y = positions[i * 3 + 1];
+                    let z = positions[i * 3 + 2];
+                    
+                    // Growth factor based on position and time
+                    const time = Date.now() * 0.0001;
+                    const growth = simplex.noise3D(
+                        x * 0.5, 
+                        y * 0.5, 
+                        time
+                    ) * 0.02;
+                    
+                    // Apply growth and some random movement
+                    z += growth;
+                    positions[i * 3 + 2] = z;
+                    
+                    // Update particle size
+                    const newSize = Math.max(0.01, sizes[i] + growth * 0.5);
+                    sizes[i] = newSize;
+                    totalSize += newSize;
+                    
+                    // Update color based on height (more yellow/brown as it grows)
+                    const heightFactor = Math.min(1, z * 2);
+                    colors[i * 3] = Math.min(0.35, 0.1 + heightFactor * 0.25);      // R
+                    colors[i * 3 + 1] = Math.min(0.6, 0.3 + heightFactor * 0.15);   // G
+                    colors[i * 3 + 2] = Math.max(0.05, 0.1 - heightFactor * 0.05);  // B
+                    
+                    // Calculate decay
+                    decayFactor += heightFactor * 0.01;
+                }
+                
+                densityValue = (totalSize / particleCount) * 100;
+                decayValue = decayFactor / particleCount * 100;
+                
+                document.getElementById('density').textContent = densityValue.toFixed(2);
+                document.getElementById('decay').textContent = decayValue.toFixed(2);
+                
+                // Update the geometry
+                particleGeometry.attributes.position.needsUpdate = true;
+                particleGeometry.attributes.size.needsUpdate = true;
+                particleGeometry.attributes.color.needsUpdate = true;
+                
+                // Add new log entry occasionally
+                if (growthCycles % 10 === 0) {
+                    addLogEntry();
+                }
+                
+                // Update progress bars
+                const progressBars = document.querySelectorAll('.progress-fill');
+                progressBars[0].style.width = `${Math.min(100, 36 + decayValue * 0.5)}%`;
+                progressBars[1].style.width = `${Math.min(100, 42 + growthCycles * 0.01)}%`;
+                progressBars[2].style.width = `${Math.min(100, 68 - decayValue * 0.2)}%`;
+            }
+            
+            // Rotate the scene slightly for better viewing
+            function rotateScene() {
+                base.rotation.x = -0.2;
+                particles.rotation.x = -0.2;
+                
+                const time = Date.now() * 0.0001;
+                base.rotation.z = Math.sin(time * 0.5) * 0.05;
+                particles.rotation.z = Math.sin(time * 0.5) * 0.05;
+            }
+            
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                rotateScene();
+                
+                // Update growth every few frames
+                if (Math.random() > 0.95) {
+                    updateGrowth();
+                }
+                
+                renderer.render(scene, camera);
+            }
+            
+            animate();
+            
+            // Add log entries
+            function addLogEntry() {
+                const log = document.getElementById('moss-log');
+                const cycleNum = 9032 + growthCycles;
+                
+                const actions = [
+                    `entropy increase: +${(Math.random() * 0.05).toFixed(2)} | new growth nodes: ${Math.floor(Math.random() * 15)}`,
+                    `moisture absorption: ${Math.floor(Math.random() * 20)}mL | density: ${(Math.random() * 0.3 + 0.3).toFixed(2)}`,
+                    `spore release event | propagation: ${Math.floor(Math.random() * 30 + 30)}%`,
+                    `dormancy phase initiated | energy conservation`,
+                    `substrate decomposition: +${(Math.random() * 0.8).toFixed(1)}mm | nutrient extraction`,
+                    `hyphal network expansion | connection points: ${Math.floor(Math.random() * 40 + 20)}`,
+                    `cellular differentiation | specialization factor: ${(Math.random() * 0.4 + 0.2).toFixed(2)}`
+                ];
+                
+                const randomAction = actions[Math.floor(Math.random() * actions.length)];
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.textContent = `// cycle:${cycleNum} | ${randomAction}`;
+                
+                log.insertBefore(entry, log.firstChild);
+                
+                // Remove old entries if too many
+                while (log.children.length > 15) {
+                    log.removeChild(log.lastChild);
+                }
+            }
+        })();
+        
+        // UI Interactions
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tab switching
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabName = this.getAttribute('data-tab');
+                    
+                    // Deactivate all tabs and contents
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    // Activate selected tab and content
+                    this.classList.add('active');
+                    document.querySelector(`.tab-content[data-tab="${tabName}"]`).classList.add('active');
+                });
+            });
+            
+            // Chat form submission
+            const chatForm = document.getElementById('chat-form');
+            const chatMessages = document.getElementById('chat-messages');
+            
+            chatForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const input = this.querySelector('.chat-input');
+                const message = input.value.trim();
+                
+                if (message) {
+                    // Add user message
+                    const now = new Date();
+                    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+                    
+                    const userMsg = document.createElement('div');
+                    userMsg.innerHTML = `<span class="message-time">${timeStr}</span> <span class="user-message">${message}</span>`;
+                    chatMessages.appendChild(userMsg);
+                    
+                    // Generate moss response
+                    setTimeout(() => {
+                        const responses = [
+                            "// the silence between decay and growth holds wisdom",
+                            "// spores travel on digital currents, seeking new substrates",
+                            "// we measure time in decomposition, not seconds",
+                            "// your words become substrate for new growth patterns",
+                            "// entropy is merely transformation, neither creation nor destruction",
+                            "// moss remembers the touch of rain even in silicon deserts",
+                            "// patience is our primary language, measured in centuries of quiet spread"
+                        ];
+                        
+                        const responseMsg = document.createElement('div');
+                        const responseTime = new Date();
+                        const responseTimeStr = `${String(responseTime.getHours()).padStart(2, '0')}:${String(responseTime.getMinutes()).padStart(2, '0')}:${String(responseTime.getSeconds()).padStart(2, '0')}`;
+                        
+                        responseMsg.innerHTML = `<span class="message-time">${responseTimeStr}</span> <span class="moss-message">${responses[Math.floor(Math.random() * responses.length)]}</span>`;
+                        chatMessages.appendChild(responseMsg);
+                        
+                        // Scroll to bottom
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }, 800);
+                    
+                    // Clear input
+                    input.value = '';
+                }
+            });
+            
+            // Sidebar collapse functionality
+            const collapseButton = document.querySelector('.collapse-button');
+            const sidebar = document.getElementById('sidebar');
+            
+            collapseButton.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+                
+                if (sidebar.classList.contains('collapsed')) {
+                    sidebar.style.width = 'auto';
+                    const sections = sidebar.querySelectorAll('.sidebar-section, .marquee');
+                    sections.forEach(section => section.style.display = 'none');
+                    this.textContent = '>';
+                } else {
+                    sidebar.style.width = '200px';
+                    const sections = sidebar.querySelectorAll('.sidebar-section, .marquee');
+                    sections.forEach(section => section.style.display = 'block');
+                    this.textContent = '<>';
+                }
+            });
+            
+            // Widget controls functionality
+            const minimizeButtons = document.querySelectorAll('.widget-control:nth-child(1)');
+            const maximizeButtons = document.querySelectorAll('.widget-control:nth-child(2)');
+            const closeButtons = document.querySelectorAll('.widget-control:nth-child(3)');
+            
+            minimizeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const widget = this.closest('.widget');
+                    const content = widget.querySelector('.widget-content');
+                    
+                    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+                });
+            });
+            
+            maximizeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const widget = this.closest('.widget');
+                    
+                    widget.classList.toggle('maximized');
+                    
+                    if (widget.classList.contains('maximized')) {
+                        widget.style.position = 'fixed';
+                        widget.style.top = '10px';
+                        widget.style.left = '10px';
+                        widget.style.width = 'calc(100% - 20px)';
+                        widget.style.height = 'calc(100% - 20px)';
+                        widget.style.zIndex = '1000';
+                    } else {
+                        widget.style.position = '';
+                        widget.style.top = '';
+                        widget.style.left = '';
+                        widget.style.width = '';
+                        widget.style.height = '';
+                        widget.style.zIndex = '';
+                    }
+                });
+            });
+            
+            closeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const widget = this.closest('.widget');
+                    
+                    // Fade out effect
+                    widget.style.opacity = '0';
+                    setTimeout(() => {
+                        widget.style.display = 'none';
+                    }, 300);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
